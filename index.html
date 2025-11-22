@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stone Paper Scissors - Ultimate</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Confetti Library -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+        }
+        
+        .game-card {
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        }
+
+        .emoji-hand {
+            font-size: 4rem;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));
+            transition: transform 0.2s;
+        }
+
+        .btn-option:active .emoji-hand {
+            transform: scale(0.9);
+        }
+
+        /* Animation for the Countdown Reveal */
+        @keyframes popIn {
+            0% { transform: scale(0); opacity: 0; }
+            80% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .animate-pop {
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        /* Fight/Face-off Animations */
+        @keyframes slideRight {
+            0% { transform: translateX(-100px) scale(0.5); opacity: 0; }
+            100% { transform: translateX(0) scale(1); opacity: 1; }
+        }
+        @keyframes slideLeft {
+            0% { transform: translateX(100px) scale(0.5) scaleX(-1); opacity: 0; }
+            100% { transform: translateX(0) scale(1) scaleX(-1); opacity: 1; } /* Mirror P2 hand */
+        }
+        
+        .hand-p1-enter { animation: slideRight 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        .hand-p2-enter { animation: slideLeft 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        
+        .timer-bar {
+            transition: width 1s linear;
+        }
+
+        /* Mode Card Hover Effect */
+        .mode-card:hover {
+            transform: translateY(-5px);
+            border-color: #4f46e5;
+        }
+    </style>
+</head>
+<body class="h-screen w-full flex items-center justify-center p-4 bg-slate-100">
+
+    <!-- Main Container -->
+    <div class="game-card w-full max-w-md bg-white rounded-3xl overflow-hidden relative min-h-[650px] flex flex-col">
+        
+        <!-- Header -->
+        <div class="bg-indigo-600 p-4 flex justify-between items-center text-white">
+            <h1 class="font-extrabold text-xl tracking-wider">RPS DUEL</h1>
+            <div id="header-target" class="text-xs font-mono bg-indigo-800 px-2 py-1 rounded">Target: 5</div>
+        </div>
+
+        <!-- Scoreboard (Visible in Game & Result) -->
+        <div id="scoreboard" class="hidden bg-indigo-50 border-b border-indigo-100 p-3 flex justify-between items-center">
+            <div class="text-center w-1/3">
+                <p id="score-name-p1" class="text-xs font-bold text-gray-500 uppercase truncate">P1</p>
+                <p id="score-val-p1" class="text-2xl font-black text-indigo-600">0</p>
+            </div>
+            <div class="text-gray-300 font-bold">VS</div>
+            <div class="text-center w-1/3">
+                <p id="score-name-p2" class="text-xs font-bold text-gray-500 uppercase truncate">P2</p>
+                <p id="score-val-p2" class="text-2xl font-black text-pink-600">0</p>
+            </div>
+        </div>
+
+        <!-- CONTENT AREA -->
+        <div class="flex-1 relative p-6 flex flex-col items-center justify-center">
+
+            <!-- SCREEN 0: MODE SELECT -->
+            <div id="screen-mode" class="text-center w-full flex flex-col h-full justify-center">
+                <h2 class="text-3xl font-bold text-gray-800 mb-2">Select Mode</h2>
+                <p class="text-gray-500 mb-8">Who do you want to battle?</p>
+
+                <div class="space-y-4 w-full">
+                    <!-- VS Computer -->
+                    <button onclick="game.selectMode('pve')" class="mode-card w-full bg-gray-50 border-2 border-gray-200 p-6 rounded-2xl flex items-center gap-4 transition-all group text-left">
+                        <div class="bg-indigo-100 p-3 rounded-full text-indigo-600">
+                            <i data-lucide="bot" size="32"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-gray-800 text-lg group-hover:text-indigo-600">Vs Computer</h3>
+                            <p class="text-xs text-gray-500">Play solo against AI</p>
+                        </div>
+                    </button>
+
+                    <!-- VS Friend -->
+                    <button onclick="game.selectMode('pvp')" class="mode-card w-full bg-gray-50 border-2 border-gray-200 p-6 rounded-2xl flex items-center gap-4 transition-all group text-left">
+                        <div class="bg-pink-100 p-3 rounded-full text-pink-600">
+                            <i data-lucide="users" size="32"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-gray-800 text-lg group-hover:text-pink-600">Vs Friend</h3>
+                            <p class="text-xs text-gray-500">Pass & Play (2 Players)</p>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- SCREEN 1: START MENU (Setup) -->
+            <div id="screen-start" class="hidden text-center w-full flex-col h-full justify-center">
+                <button onclick="game.switchScreen('screen-mode')" class="absolute top-0 left-0 p-2 text-gray-400 hover:text-gray-600">
+                    <i data-lucide="arrow-left"></i>
+                </button>
+
+                <div class="mb-6 flex justify-center gap-4 mt-4">
+                    <span class="text-4xl">✊</span>
+                    <span class="text-4xl">✋</span>
+                    <span class="text-4xl">✌️</span>
+                </div>
+                <h2 class="text-3xl font-bold text-gray-800 mb-6">Match Setup</h2>
+                
+                <div class="space-y-4 mb-6 w-full text-left">
+                    <div>
+                        <label id="label-p1" class="text-xs font-bold text-gray-500 ml-1">PLAYER NAME</label>
+                        <input type="text" id="input-p1" placeholder="Enter Name" class="w-full bg-gray-100 border-2 border-transparent focus:border-indigo-500 rounded-xl px-4 py-3 font-semibold outline-none transition">
+                    </div>
+                    <div id="container-p2-input">
+                        <label class="text-xs font-bold text-gray-500 ml-1">OPPONENT NAME</label>
+                        <input type="text" id="input-p2" placeholder="Enter Name" class="w-full bg-gray-100 border-2 border-transparent focus:border-pink-500 rounded-xl px-4 py-3 font-semibold outline-none transition">
+                    </div>
+                </div>
+
+                <!-- Target Score Selector -->
+                <div class="mb-8 w-full text-left">
+                    <label class="text-xs font-bold text-gray-500 ml-1 mb-2 block">WINNING SCORE</label>
+                    <div class="flex justify-between gap-2 bg-gray-100 p-1.5 rounded-xl">
+                        <button onclick="game.setTarget(3)" id="btn-score-3" class="score-btn flex-1 py-2 rounded-lg font-bold text-sm text-gray-500 hover:bg-white transition">3</button>
+                        <button onclick="game.setTarget(5)" id="btn-score-5" class="score-btn flex-1 py-2 rounded-lg font-bold text-sm bg-white shadow-sm text-indigo-600 transition">5</button>
+                        <button onclick="game.setTarget(7)" id="btn-score-7" class="score-btn flex-1 py-2 rounded-lg font-bold text-sm text-gray-500 hover:bg-white transition">7</button>
+                        <button onclick="game.setTarget(9)" id="btn-score-9" class="score-btn flex-1 py-2 rounded-lg font-bold text-sm text-gray-500 hover:bg-white transition">9</button>
+                        <button onclick="game.setTarget(11)" id="btn-score-11" class="score-btn flex-1 py-2 rounded-lg font-bold text-sm text-gray-500 hover:bg-white transition">11</button>
+                    </div>
+                </div>
+                
+                <button onclick="game.startGame()" class="w-full bg-gray-900 hover:bg-black text-white font-bold py-4 px-6 rounded-xl shadow-lg transform transition hover:-translate-y-1 active:translate-y-0 text-lg flex items-center justify-center gap-2">
+                    <i data-lucide="swords"></i> Start Battle
+                </button>
+            </div>
+
+            <!-- SCREEN 2: GAMEPLAY -->
+            <div id="screen-game" class="hidden w-full flex-col items-center">
+                <!-- Player Indicator -->
+                <div class="mb-6 text-center">
+                    <span id="current-player-badge" class="bg-indigo-100 text-indigo-800 text-xs font-bold px-4 py-1 rounded-full uppercase tracking-wide shadow-sm">Player 1</span>
+                    <h3 class="text-2xl font-bold text-gray-800 mt-3">Make your move!</h3>
+                </div>
+
+                <!-- Timer -->
+                <div class="w-full bg-gray-200 rounded-full h-4 mb-10 relative overflow-hidden">
+                    <div id="timer-fill" class="bg-red-500 h-full rounded-full w-full timer-bar"></div>
+                </div>
+                <p id="timer-text" class="text-red-500 font-bold text-center -mt-8 mb-8">10s</p>
+
+                <!-- Options -->
+                <div class="grid grid-cols-3 gap-4 w-full">
+                    <button onclick="game.makeSelection('stone')" class="btn-option flex flex-col items-center p-4 bg-gray-50 border-2 border-gray-200 rounded-2xl hover:border-indigo-500 hover:bg-indigo-50 transition-all group">
+                        <span class="emoji-hand mb-2 group-hover:scale-110 block">✊</span>
+                        <span class="font-semibold text-gray-700 text-xs sm:text-sm">Stone</span>
+                    </button>
+                    <button onclick="game.makeSelection('paper')" class="btn-option flex flex-col items-center p-4 bg-gray-50 border-2 border-gray-200 rounded-2xl hover:border-indigo-500 hover:bg-indigo-50 transition-all group">
+                        <span class="emoji-hand mb-2 group-hover:scale-110 block">✋</span>
+                        <span class="font-semibold text-gray-700 text-xs sm:text-sm">Paper</span>
+                    </button>
+                    <button onclick="game.makeSelection('scissor')" class="btn-option flex flex-col items-center p-4 bg-gray-50 border-2 border-gray-200 rounded-2xl hover:border-indigo-500 hover:bg-indigo-50 transition-all group">
+                        <span class="emoji-hand mb-2 group-hover:scale-110 block">✌️</span>
+                        <span class="font-semibold text-gray-700 text-xs sm:text-sm">Scissor</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- SCREEN 3: INTERMISSION (PvP Only) -->
+            <div id="screen-intermission" class="hidden text-center w-full flex-col items-center justify-center h-full">
+                <div class="bg-green-100 p-4 rounded-full w-24 h-24 flex items-center justify-center mb-6 text-green-600 shadow-inner">
+                    <i data-lucide="lock" size="40"></i>
+                </div>
+                <h3 class="text-2xl font-bold text-gray-800 mb-2">Move Locked!</h3>
+                <p class="text-gray-600 mb-8">Please pass device to <br><span id="intermission-next-name" class="font-bold text-pink-600 text-xl">Player 2</span></p>
+                
+                <button onclick="game.startP2()" class="w-full bg-pink-600 hover:bg-pink-700 text-white font-bold py-4 rounded-xl shadow-lg mt-auto">
+                    I am Ready
+                </button>
+            </div>
+
+            <!-- SCREEN 4: ANNOUNCEMENT / SHOWDOWN -->
+            <div id="screen-announce" class="hidden flex-col items-center justify-center h-full w-full absolute inset-0 bg-white z-20">
+                <!-- Chant Text -->
+                <h1 id="chant-text" class="text-5xl font-black text-gray-800 tracking-tighter uppercase absolute top-1/4 transition-opacity">
+                    STONE
+                </h1>
+
+                <!-- Fighting Animation Container -->
+                <div id="fight-container" class="hidden w-full flex justify-between items-center px-2 absolute top-1/2 transform -translate-y-1/2">
+                    <!-- P1 Hand -->
+                    <div id="fight-p1" class="text-7xl filter drop-shadow-xl">✊</div>
+                    <!-- VS Graphic -->
+                    <div class="text-2xl font-black italic text-gray-200">VS</div>
+                    <!-- P2 Hand (Mirrored via CSS) -->
+                    <div id="fight-p2" class="text-7xl filter drop-shadow-xl">✌️</div>
+                </div>
+            </div>
+
+            <!-- SCREEN 5: ROUND RESULT -->
+            <div id="screen-result" class="hidden w-full flex-col items-center">
+                <!-- Winner Banner -->
+                <div id="winner-banner" class="bg-indigo-100 text-indigo-800 px-6 py-4 rounded-2xl mb-8 text-center w-full shadow-sm">
+                    <h2 id="result-title" class="text-2xl font-bold mb-1">Player 1 Wins!</h2>
+                    <p id="result-subtitle" class="text-sm font-medium opacity-75">Stone beats Scissor</p>
+                </div>
+
+                <!-- Visual Recap (Static) -->
+                <div class="flex justify-center gap-8 mb-10 opacity-50 grayscale">
+                    <div class="text-center">
+                        <div id="res-icon-1" class="text-4xl mb-1">✊</div>
+                        <div id="res-name-1" class="text-xs font-bold">P1</div>
+                    </div>
+                    <div class="text-center">
+                        <div id="res-icon-2" class="text-4xl mb-1 scale-x-[-1]">✌️</div>
+                        <div id="res-name-2" class="text-xs font-bold">P2</div>
+                    </div>
+                </div>
+
+                <button id="btn-next-round" onclick="game.nextRound()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all">
+                    Next Round <i data-lucide="arrow-right"></i>
+                </button>
+            </div>
+
+            <!-- SCREEN 6: MATCH OVER -->
+            <div id="screen-gameover" class="hidden w-full flex-col items-center justify-center h-full text-center z-30 absolute inset-0 bg-white/95 backdrop-blur-sm">
+                <div class="mb-4 text-6xl animate-bounce">🏆</div>
+                <h1 class="text-4xl font-black text-gray-900 mb-2">MATCH OVER</h1>
+                <h2 id="champion-name" class="text-3xl font-bold text-indigo-600 mb-4">Player 1</h2>
+                <p class="text-gray-500 mb-8 font-medium">is the Ultimate Champion!</p>
+                
+                <div class="bg-gray-100 rounded-xl p-6 mb-8 w-full max-w-xs mx-auto">
+                    <div class="flex justify-between text-lg font-bold border-b border-gray-300 pb-2 mb-2">
+                        <span>Final Score</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span id="final-p1-name" class="text-gray-600">P1</span>
+                        <span id="final-score" class="text-xl font-mono bg-white px-2 py-1 rounded border">11 - 9</span>
+                        <span id="final-p2-name" class="text-gray-600">P2</span>
+                    </div>
+                </div>
+
+                <button onclick="game.fullReset()" class="bg-gray-900 text-white px-8 py-4 rounded-full font-bold shadow-xl hover:scale-105 transition-transform flex items-center gap-2">
+                    <i data-lucide="rotate-ccw"></i> Start New Match
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        const EMOJIS = { 'stone': '✊', 'paper': '✋', 'scissor': '✌️' };
+
+        class Game {
+            constructor() {
+                this.mode = 'pve'; // 'pve' or 'pvp'
+                this.names = { p1: "Player 1", p2: "Player 2" };
+                this.scores = { p1: 0, p2: 0 };
+                this.choices = { p1: null, p2: null };
+                this.timeLeft = 10;
+                this.timerInterval = null;
+                this.targetScore = 5;
+            }
+
+            selectMode(mode) {
+                this.mode = mode;
+                
+                // Update Input Visibility
+                const p2Input = document.getElementById('container-p2-input');
+                if (this.mode === 'pve') {
+                    p2Input.classList.add('hidden');
+                    document.getElementById('label-p1').innerText = "YOUR NAME";
+                } else {
+                    p2Input.classList.remove('hidden');
+                    document.getElementById('label-p1').innerText = "PLAYER 1 NAME";
+                }
+                
+                this.switchScreen('screen-start');
+            }
+
+            setTarget(score) {
+                this.targetScore = score;
+                document.querySelectorAll('.score-btn').forEach(btn => {
+                    btn.className = "score-btn flex-1 py-2 rounded-lg font-bold text-sm text-gray-500 hover:bg-white transition";
+                });
+                document.getElementById(`btn-score-${score}`).className = "score-btn flex-1 py-2 rounded-lg font-bold text-sm bg-white shadow-sm text-indigo-600 transition";
+                document.getElementById('header-target').innerText = `Target: ${score}`;
+            }
+
+            startGame() {
+                // Get names
+                const n1 = document.getElementById('input-p1').value.trim();
+                const n2 = document.getElementById('input-p2').value.trim();
+                
+                this.names.p1 = n1 || "Player 1";
+                
+                if (this.mode === 'pve') {
+                    this.names.p2 = "AI Bot";
+                } else {
+                    this.names.p2 = n2 || "Player 2";
+                }
+
+                // Initialize UI
+                document.getElementById('score-name-p1').innerText = this.names.p1;
+                document.getElementById('score-name-p2').innerText = this.names.p2;
+                document.getElementById('res-name-1').innerText = this.names.p1;
+                document.getElementById('res-name-2').innerText = this.names.p2;
+                document.getElementById('header-target').innerText = `Target: ${this.targetScore}`;
+                
+                document.getElementById('scoreboard').classList.remove('hidden');
+                document.getElementById('scoreboard').classList.add('flex');
+
+                this.startP1();
+            }
+
+            startP1() {
+                this.choices.p1 = null;
+                this.choices.p2 = null;
+                this.startTurn('p1');
+            }
+
+            startP2() {
+                this.startTurn('p2');
+            }
+
+            startTurn(playerKey) {
+                this.switchScreen('screen-game');
+                
+                const badge = document.getElementById('current-player-badge');
+                badge.innerText = this.names[playerKey];
+                badge.className = playerKey === 'p1' 
+                    ? "bg-indigo-100 text-indigo-800 text-xs font-bold px-4 py-1 rounded-full uppercase tracking-wide shadow-sm"
+                    : "bg-pink-100 text-pink-800 text-xs font-bold px-4 py-1 rounded-full uppercase tracking-wide shadow-sm";
+
+                this.timeLeft = 10;
+                this.updateTimerUI();
+                if (this.timerInterval) clearInterval(this.timerInterval);
+                
+                this.timerInterval = setInterval(() => {
+                    this.timeLeft--;
+                    this.updateTimerUI();
+                    if (this.timeLeft <= 0) this.autoSelect(playerKey);
+                }, 1000);
+            }
+
+            updateTimerUI() {
+                const pct = (this.timeLeft / 10) * 100;
+                document.getElementById('timer-fill').style.width = `${pct}%`;
+                document.getElementById('timer-text').innerText = `${this.timeLeft}s`;
+            }
+
+            autoSelect(playerKey) {
+                const opts = ['stone', 'paper', 'scissor'];
+                this.makeSelection(opts[Math.floor(Math.random() * opts.length)]);
+            }
+
+            makeSelection(choice) {
+                clearInterval(this.timerInterval);
+                
+                // VS COMPUTER LOGIC
+                if (this.mode === 'pve') {
+                    this.choices.p1 = choice;
+                    // AI picks immediately (Random)
+                    const opts = ['stone', 'paper', 'scissor'];
+                    this.choices.p2 = opts[Math.floor(Math.random() * opts.length)];
+                    this.runShowdown();
+                    return;
+                }
+
+                // VS PLAYER LOGIC
+                if (!this.choices.p1) {
+                    this.choices.p1 = choice;
+                    document.getElementById('intermission-next-name').innerText = this.names.p2;
+                    this.switchScreen('screen-intermission');
+                } else {
+                    this.choices.p2 = choice;
+                    this.runShowdown();
+                }
+            }
+
+            speak(text) {
+                if ('speechSynthesis' in window) {
+                    window.speechSynthesis.cancel();
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.rate = 1.2;
+                    utterance.pitch = 1.2;
+                    window.speechSynthesis.speak(utterance);
+                }
+            }
+
+            runShowdown() {
+                this.switchScreen('screen-announce');
+                const textEl = document.getElementById('chant-text');
+                const fightContainer = document.getElementById('fight-container');
+                
+                if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+
+                fightContainer.classList.add('hidden');
+                fightContainer.classList.remove('flex');
+                textEl.style.display = 'block';
+
+                const sequence = [
+                    { text: "STONE", delay: 0 },
+                    { text: "PAPER", delay: 800 },
+                    { text: "SCISSOR", delay: 1600 }
+                ];
+
+                sequence.forEach((step, idx) => {
+                    setTimeout(() => {
+                        textEl.innerText = step.text;
+                        textEl.classList.remove('animate-pop');
+                        void textEl.offsetWidth;
+                        textEl.classList.add('animate-pop');
+
+                        if (idx === sequence.length - 1) {
+                            setTimeout(() => this.triggerFightAnimation(), 800);
+                        }
+                    }, step.delay);
+                });
+            }
+
+            triggerFightAnimation() {
+                const textEl = document.getElementById('chant-text');
+                const fightContainer = document.getElementById('fight-container');
+                const p1Hand = document.getElementById('fight-p1');
+                const p2Hand = document.getElementById('fight-p2');
+
+                textEl.style.display = 'none';
+                fightContainer.classList.remove('hidden');
+                fightContainer.classList.add('flex');
+
+                p1Hand.innerText = EMOJIS[this.choices.p1];
+                p2Hand.innerText = EMOJIS[this.choices.p2];
+
+                p1Hand.className = "text-7xl filter drop-shadow-xl hand-p1-enter";
+                p2Hand.className = "text-7xl filter drop-shadow-xl hand-p2-enter";
+
+                setTimeout(() => this.calculateResult(), 1500);
+            }
+
+            calculateResult() {
+                const p1 = this.choices.p1;
+                const p2 = this.choices.p2;
+                let winner = 'draw';
+
+                if (p1 !== p2) {
+                    if ((p1 === 'stone' && p2 === 'scissor') ||
+                        (p1 === 'paper' && p2 === 'stone') ||
+                        (p1 === 'scissor' && p2 === 'paper')) {
+                        winner = 'p1';
+                        this.scores.p1++;
+                    } else {
+                        winner = 'p2';
+                        this.scores.p2++;
+                    }
+                }
+
+                this.updateScoreboard();
+                this.showRoundResult(winner);
+            }
+
+            updateScoreboard() {
+                document.getElementById('score-val-p1').innerText = this.scores.p1;
+                document.getElementById('score-val-p2').innerText = this.scores.p2;
+            }
+
+            showRoundResult(winner) {
+                document.getElementById('res-icon-1').innerText = EMOJIS[this.choices.p1];
+                document.getElementById('res-icon-2').innerText = EMOJIS[this.choices.p2];
+
+                const title = document.getElementById('result-title');
+                const sub = document.getElementById('result-subtitle');
+                const banner = document.getElementById('winner-banner');
+
+                if (winner === 'draw') {
+                    title.innerText = "Draw!";
+                    sub.innerText = "No points awarded.";
+                    banner.className = "bg-gray-200 text-gray-800 px-6 py-4 rounded-2xl mb-8 text-center w-full shadow-sm";
+                } else if (winner === 'p1') {
+                    title.innerText = `${this.names.p1} Wins!`;
+                    sub.innerText = `${this.capitalize(this.choices.p1)} beats ${this.capitalize(this.choices.p2)}`;
+                    banner.className = "bg-indigo-100 text-indigo-800 px-6 py-4 rounded-2xl mb-8 text-center w-full shadow-sm";
+                } else {
+                    title.innerText = `${this.names.p2} Wins!`;
+                    sub.innerText = `${this.capitalize(this.choices.p2)} beats ${this.capitalize(this.choices.p1)}`;
+                    banner.className = "bg-pink-100 text-pink-800 px-6 py-4 rounded-2xl mb-8 text-center w-full shadow-sm";
+                }
+
+                const btnNext = document.getElementById('btn-next-round');
+                const isMatchOver = this.scores.p1 >= this.targetScore || this.scores.p2 >= this.targetScore;
+
+                if (isMatchOver) {
+                    btnNext.innerHTML = `View Champion <i data-lucide="trophy"></i>`;
+                    btnNext.classList.replace('bg-indigo-600', 'bg-black');
+                    btnNext.classList.replace('hover:bg-indigo-700', 'hover:bg-gray-800');
+                } else {
+                    btnNext.innerHTML = `Next Round <i data-lucide="arrow-right"></i>`;
+                    btnNext.classList.remove('bg-black', 'hover:bg-gray-800');
+                    btnNext.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+                }
+                lucide.createIcons(); 
+
+                this.switchScreen('screen-result');
+            }
+
+            nextRound() {
+                if (this.scores.p1 >= this.targetScore || this.scores.p2 >= this.targetScore) {
+                    this.endMatch();
+                } else {
+                    this.startP1();
+                }
+            }
+
+            triggerConfetti() {
+                var duration = 3 * 1000;
+                var animationEnd = Date.now() + duration;
+                var defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 50 };
+                var random = function(min, max) { return Math.random() * (max - min) + min; }
+
+                var interval = setInterval(function() {
+                    var timeLeft = animationEnd - Date.now();
+                    if (timeLeft <= 0) return clearInterval(interval);
+                    var particleCount = 50 * (timeLeft / duration);
+                    confetti(Object.assign({}, defaults, { particleCount, origin: { x: random(0.1, 0.3), y: Math.random() - 0.2 } }));
+                    confetti(Object.assign({}, defaults, { particleCount, origin: { x: random(0.7, 0.9), y: Math.random() - 0.2 } }));
+                }, 250);
+            }
+
+            endMatch() {
+                const winnerName = this.scores.p1 >= this.targetScore ? this.names.p1 : this.names.p2;
+                document.getElementById('champion-name').innerText = winnerName;
+                document.getElementById('final-p1-name').innerText = this.names.p1;
+                document.getElementById('final-p2-name').innerText = this.names.p2;
+                document.getElementById('final-score').innerText = `${this.scores.p1} - ${this.scores.p2}`;
+                
+                this.switchScreen('screen-gameover');
+
+                this.triggerConfetti();
+                this.speak("Congratulations! " + winnerName + " is the ultimate champion!");
+            }
+
+            fullReset() {
+                this.scores = { p1: 0, p2: 0 };
+                this.updateScoreboard();
+                document.getElementById('scoreboard').classList.add('hidden');
+                document.getElementById('scoreboard').classList.remove('flex');
+                document.getElementById('input-p1').value = "";
+                document.getElementById('input-p2').value = "";
+                this.names = { p1: "Player 1", p2: "Player 2" };
+                
+                this.switchScreen('screen-mode');
+            }
+
+            switchScreen(id) {
+                const screens = ['screen-mode', 'screen-start', 'screen-game', 'screen-intermission', 'screen-announce', 'screen-result', 'screen-gameover'];
+                screens.forEach(s => {
+                    const el = document.getElementById(s);
+                    el.classList.add('hidden');
+                    el.classList.remove('flex');
+                });
+                const target = document.getElementById(id);
+                target.classList.remove('hidden');
+                if (id !== 'screen-intermission') target.classList.add('flex');
+                else target.classList.remove('hidden'); // intermission handles its own flex logic inside
+                
+                // Specific check because some screens were misbehaving with flex-col
+                if(id === 'screen-intermission') {
+                    target.classList.add('flex');
+                }
+            }
+
+            capitalize(str) {
+                return str.charAt(0).toUpperCase() + str.slice(1);
+            }
+        }
+
+        const game = new Game();
+    </script>
+</body>
+</html>
